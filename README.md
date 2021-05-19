@@ -7,7 +7,7 @@ a MU* which serves MUD listings and provides a MUD raiding community
  - Open-source and licensed under the terms of the GNU AGPL v3.0 (see `LICENSE`)
 
 ## Connect Now!
-Lighthouse has its home at [lighthouse.vineyard.haus](https://lighthouse.vineyard.haus/open-source.html), thanks to the generosity of [Vineyard](https://vineyard.haus/).
+Lighthouse has its home at [lighthouse.vineyard.haus](https://lighthouse.vineyard.haus/open-source.html), thanks to the generosity of [Vineyard](https://vineyard.haus/). To play, point your MUD client (or telnet) at `lighthouse.vineyard.haus`, port `1990`.
 
 ## Abstract
 There are a _lot_ of MUDs. Most MUDs focus on itself. Lighthouse is different. Lighthouse
