@@ -1,6 +1,9 @@
 # lighthouse
 a MU* which serves MUD listings and provides a MUD raiding community
 
+# WORK IN PROGRESS
+For information regarding its development status, see the [Projects tab](https://github.com/servusDei2018/lighthouse/projects).
+
 ## Features
  - Lightweight (no external dependencies)
  - Cross platform (AIX, Android, Darwin, Dragonfly, FreeBSD, Illumos, Linux, Nacl, NetBSD, OpenBSD, Plan9, Solaris, Windows) out of the box
