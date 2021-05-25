@@ -11,6 +11,7 @@ import (
 type MUD struct {
 	Clients map[net.Conn]Client
 	ClientsMutex sync.RWMutex
+	DB *DB
 	Disconnects chan net.Conn
 	Errors chan string
 	Messages chan Message
@@ -31,7 +32,7 @@ func (m *MUD) BroadcastAll(s string) {
 	m.ClientsMutex.RLock()
 	defer m.ClientsMutex.RUnlock()
 	for _, c := range m.Clients {
-		c.SendBytes(b, m.Disconnects)
+		c.Queue <- b
 	}
 }
 
@@ -44,6 +45,10 @@ func (m *MUD) Handle(c net.Conn) {
 	cl := Client{Conn: c}
 	// Add it to our list.
 	m.Clients[c] = cl
+	// Send greeting.
+	cl.Queue <- []byte(GREETING)
+	// Serve it.
+	cl.Serve(m.Disconnects)
 	// Listen to it.
 	cl.Listen(m.Messages, m.Disconnects)
 }
@@ -74,9 +79,9 @@ func (m *MUD) Listen(port string) (err error) {
 
 // Shutdown shuts the MUD down.
 func (m *MUD) Shutdown() {
-	for c := range m.Clients {
-		c.Write([]byte("[INFO] The MUD is shutting down. Goodbye."))
-		c.Close()
+	for conn, client := range m.Clients {
+		client.Queue <- []byte("[INFO] The MUD is shutting down. Goodbye.")
+		conn.Close()
 	}
 }
 
@@ -106,6 +111,9 @@ func (m *MUD) Start(port string) (err error) {
 
 // Tick does one round of processing.
 func (m *MUD) Tick() (err error) {
+	m.ClientsMutex.RLock()
+	defer m.ClientsMutex.RUnlock()
+
 	select {
 	// Handle disconnects.
 	case dc := <-m.Disconnects:
@@ -115,10 +123,13 @@ func (m *MUD) Tick() (err error) {
 			m.ClientsMutex.Lock()
 			delete(m.Clients, dc)
 			m.ClientsMutex.Unlock()
+			fmt.Println("left")
 			m.BroadcastAll(fmt.Sprintf("%s has left the lighthouse.", cl.Name))
 		}
 	// Handle messages
 	case msg := <-m.Messages:
+		cl := m.Clients[msg.Conn]
+		cl.Queue <- []byte("YOu say,"+msg.Message)
 		// There's a message.
 		m.BroadcastAll(msg.Message)
 	default:

@@ -5,10 +5,13 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 )
 
 type Client struct {
+	sync.RWMutex
 	Conn net.Conn
+	Queue chan []byte
 	// Playername
 	Name string
 }
@@ -38,39 +41,26 @@ func (c *Client) Listen(msgs chan Message, dc chan net.Conn) {
 	}()
 }
 
-// Send sends a message to a client.
-//
-// Sending a string is slightly less efficient than sending bytes.
-// When sending a message to a particular client, we usually use a string.
-// However, when broadcasting to all players, the message is converted
-// to bytes once (see mud.BroadcastAll), and this method is used to
-// increase efficiency.
-func (c *Client) Send(s string, dc chan net.Conn) {
+// Serve sends messages to a client.
+func (c *Client) Serve(dc chan net.Conn) {
+	c.Queue = make(chan []byte)
 	go func() {
-		_, err := c.Conn.Write([]byte(s+"\n"))
-		// If there s an error, register this client as disconnected.
-		if err != nil {
-			dc <- c.Conn
-			c.Conn.Close()
+		var msg []byte
+		for {
+			msg = <-c.Queue
+			if c.send(msg, dc) != nil { return }
 		}
 	}()
 }
 
-// SendBytes sends a message to a client.
-//
-// Sending bytes is slightly more efficient than sending a string,
-// which must be converted to bytes before transfer. When sending
-// a message to a particular client, we usually use a string. However,
-// when broadcasting to all players, the message is converted to
-// bytes once (see mud.BroadcastAll), and this method is used to
-// increase efficiency.
-func (c *Client) SendBytes(b []byte, dc chan net.Conn) {
-	go func() {
-		_, err := c.Conn.Write(b)
-		// If there s an error, register this client as disconnected.
-		if err != nil {
-			dc <- c.Conn
-			c.Conn.Close()
-		}
-	}()
+
+// send sends a message to the client.
+func (c *Client) send(b []byte, dc chan net.Conn) (err error) {
+	_, err = c.Conn.Write(b)
+	// If there s an error, register this client as disconnected.
+	if err != nil {
+		dc <- c.Conn
+		c.Conn.Close()
+	}
+	return
 }
