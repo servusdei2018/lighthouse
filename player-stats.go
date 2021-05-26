@@ -34,8 +34,13 @@ type iPlayerStats struct {
 	name string
 }
 
+// NewPlayerStats creates a new PlayerStats.
+func NewPlayerStats(name string) {
+	return &iPlayerStats{name: name}
+}
+
 // Name returns a Player's name.
-func (s iPlayerStats) Name() string {
+func (s *iPlayerStats) Name() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.name
