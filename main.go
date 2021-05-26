@@ -1,8 +1,13 @@
 package main
 
 import (
+	"log"
 	"math/rand"
 	"time"
+)
+
+const (
+	PORT = ":1990"
 )
 
 func init() {
@@ -10,11 +15,6 @@ func init() {
 }
 
 func main() {
-	var db DB
-	if err := db.Import("db.json"); err != nil {
-		panic(err)
-	}
-
-	var mud MUD
-	mud.Start(":1990")
+	var lighthouse = NewMud()
+	log.Fatal(lighthouse.ListenAndServe(PORT))
 }

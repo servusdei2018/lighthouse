@@ -1,139 +1,92 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net"
 	"sync"
 )
 
-// A MUD represents a MUD server.
-type MUD struct {
-	Clients map[net.Conn]Client
-	ClientsMutex sync.RWMutex
-	DB *DB
-	Disconnects chan net.Conn
-	Errors chan string
-	Messages chan Message
-	Server net.Listener
+// MUD facilitates interaction with its underlying components.
+type MUD interface {
+	// BroadcastAll sends a message to all Players.
+	BroadcastAll(msg []byte)
+	// ListenAndServe starts the MUD on the specified port.
+	ListenAndServe(port string) error
+	// Players returns a slice of online Players.
+	Players() []Player
+	// Process receives a Message for processing.
+	Process(msg Message)
 }
 
-// Message represents something sent by a Client.
-type Message struct {
-	Conn net.Conn
-	Message string
+// MUD implementation.
+type iMUD struct {
+	sync.RWMutex
+	msgqueue chan Message
+	// Listener.
+	server net.Listener
+	// Player store.
+	players []Player
 }
 
-// BroadcastAll sends text to all clients.
-func (m *MUD) BroadcastAll(s string) {
-	// Convert message to bytes, to avoid repetitive conversion.
-	b := []byte(s+"\n")
+// NewMud creates a new MUD.
+func NewMud() MUD {
+	return &iMUD{msgqueue: make(chan Message)}
+}
 
-	m.ClientsMutex.RLock()
-	defer m.ClientsMutex.RUnlock()
-	for _, c := range m.Clients {
-		c.Queue <- b
+// BroadcastAll sends a message to all Players.
+func (m *iMUD) BroadcastAll(msg []byte) {
+	for _, p := range m.Players() {
+		p.Send(msg)
 	}
 }
 
-// Handle handles a connection.
-func (m *MUD) Handle(c net.Conn) {
-	m.ClientsMutex.Lock()
-	defer m.ClientsMutex.Unlock()
-
-	// Spawn a new client.
-	cl := Client{Conn: c}
-	// Add it to our list.
-	m.Clients[c] = cl
-	// Send greeting.
-	cl.Queue <- []byte(GREETING)
-	// Serve it.
-	cl.Serve(m.Disconnects)
-	// Listen to it.
-	cl.Listen(m.Messages, m.Disconnects)
+// Players returns a slice of players currently online.
+func (m *iMUD) Players() []Player {
+	m.RLock()
+	defer m.RUnlock()
+	return m.players
 }
 
-// Listen opens and serves a listener.
-func (m *MUD) Listen(port string) (err error) {
-	m.Server, err = net.Listen("tcp", port)
+// Process receives a Messsage for processing.
+func (m *iMUD) Process(msg Message) {
+	go func() {
+		m.msgqueue <- msg
+	}()
+}
+
+// ListenAndServe starts a MUD up.
+func (m *iMUD) ListenAndServe(port string) (err error) {
+	// Start the listener.
+	m.Lock()
+	m.server, err = net.Listen("tcp", port)
 	if err != nil {
+		m.Unlock()
 		return
 	}
+	m.Unlock()
 
+	// Accept connections.
 	go func() {
+		var conn net.Conn
 		for {
-			// Accept a new connection
-			conn, err := m.Server.Accept()
-			if err != nil {
-				m.Errors <- fmt.Sprintf("error accepting connection, %e", err)
-				continue
-			}
-
-			// Concurrently handle it
-			go m.Handle(conn)
+			// Accept a new connection.
+			conn, err = m.server.Accept()
+			if err != nil { return }
+			// Add a new player to the player pool.
+			m.Lock()
+			m.players = append(m.players, NewPlayer(conn, m))
+			m.Unlock()
 		}
 	}()
 
-	return nil
-}
-
-// Shutdown shuts the MUD down.
-func (m *MUD) Shutdown() {
-	for conn, client := range m.Clients {
-		client.Queue <- []byte("[INFO] The MUD is shutting down. Goodbye.")
-		conn.Close()
-	}
-}
-
-// Start starts the MUD up.
-func (m *MUD) Start(port string) (err error) {
-	log.Println("[INFO] Lighthouse is starting...")
-
-	// Perform initialization.
-	m.Clients = make(map[net.Conn]Client)
-	m.Disconnects = make(chan net.Conn)
-	m.Errors = make(chan string)
-	m.Messages = make(chan Message)
-
-	// Open a port and listen for new connections.
-	if err = m.Listen(port); err != nil {
-		return
-	}
-
-	log.Println("[INFO] Lighthouse is operational.")
-	// Enter the main loop.
+	// Process messages.
+	var msg Message
 	for {
-		if err = m.Tick(); err != nil {
-			return
+		msg = <- m.msgqueue
+		if msg.Error() != nil {
+			msg.Player().Shutdown()
+			//TODO: Remove this player from the player pool
+			continue
 		}
+		m.BroadcastAll([]byte(msg.Message()+"\n"))
 	}
-}
-
-// Tick does one round of processing.
-func (m *MUD) Tick() (err error) {
-	m.ClientsMutex.RLock()
-	defer m.ClientsMutex.RUnlock()
-
-	select {
-	// Handle disconnects.
-	case dc := <-m.Disconnects:
-		cl, ok := m.Clients[dc]
-		// The disconnected Conn should always be in the map, but always ensure, to avoid UB.
-		if ok {
-			m.ClientsMutex.Lock()
-			delete(m.Clients, dc)
-			m.ClientsMutex.Unlock()
-			fmt.Println("left")
-			m.BroadcastAll(fmt.Sprintf("%s has left the lighthouse.", cl.Name))
-		}
-	// Handle messages
-	case msg := <-m.Messages:
-		cl := m.Clients[msg.Conn]
-		cl.Queue <- []byte("YOu say,"+msg.Message)
-		// There's a message.
-		m.BroadcastAll(msg.Message)
-	default:
-	}
-
-	return
 }
