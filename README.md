@@ -1,4 +1,4 @@
-# lighthouse
+# lighthouse [![CodeFactor](https://www.codefactor.io/repository/github/servusdei2018/lighthouse/badge)](https://www.codefactor.io/repository/github/servusdei2018/lighthouse) ![](https://img.shields.io/github/issues/teamdei/tandem)
 a MU* which serves MUD listings and provides a MUD raiding community
 
 # WORK IN PROGRESS
