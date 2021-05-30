@@ -50,6 +50,8 @@ func NewPlayer(conn net.Conn, mud MUD) Player {
 	p := &iPlayer{conn: conn, msgqueue: make(chan []byte)}
 	// Serve them.
 	p.Serve(mud)
+	// Send welcome message.
+	p.Send(WELCOME_MSG)
 	return p
 }
 

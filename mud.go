@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
+	"fmt"
 	"net"
 	"sync"
 )
@@ -33,6 +34,8 @@ type MUD interface {
 	Players() []Player
 	// Process receives a Message for processing.
 	Process(msg Message)
+	// RemovePlayer removes a Player from the MUD's Player list.
+	RemovePlayer(Player)
 }
 
 // MUD implementation.
@@ -71,6 +74,29 @@ func (m *iMUD) Process(msg Message) {
 	}()
 }
 
+// RemovePlayer removes a Player from the MUD's player list.
+func (m *iMUD) RemovePlayer(p Player) {
+	// Shutdown the underlying connection.
+	p.Shutdown()
+
+	// Send a disconnect message.
+	if p.Name() != "" {
+		go m.BroadcastAll([]byte(fmt.Sprintf("%s has left the lighthouse.\n", p.Name())))
+	}
+
+	// Delete the Player from the player list.
+	players := m.Players()
+	for k, v := range players {
+		if v == p {
+			m.Lock()
+			// Remove the Player by plucking him out of the list.
+			m.players = append(m.players[:k], m.players[k+1:]...)
+			m.Unlock()
+			return
+		}
+	}
+}
+
 // ListenAndServe starts a MUD up.
 func (m *iMUD) ListenAndServe(port string) (err error) {
 	// Start the listener.
@@ -101,10 +127,19 @@ func (m *iMUD) ListenAndServe(port string) (err error) {
 	for {
 		msg = <- m.msgqueue
 		if msg.Error() != nil {
-			msg.Player().Shutdown()
-			//TODO: Remove this player from the player pool
+			go m.RemovePlayer(msg.Player())
 			continue
 		}
-		m.BroadcastAll([]byte(msg.Message()+"\n"))
+
+		if msg.Player().Name() != "" {
+			go m.BroadcastAll([]byte(fmt.Sprintf("%v chats, \"%s\"\n", msg.Player().Name(), msg.Message())))
+		} else {
+			if msg.Message() != "" {
+				msg.Player().SetName(msg.Message())
+			} else {
+				msg.Player().Send([]byte("You must choose a valid name!\n\n"))
+				msg.Player().Send(WELCOME_MSG)
+			}
+		}
 	}
 }

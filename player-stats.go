@@ -25,6 +25,7 @@ import (
 // PlayerStats describes in-game data for a Player.
 type PlayerStats interface {
 	Name() string
+	SetName(string)
 }
 
 // iPlayerStats implements PlayerStats.
@@ -35,7 +36,7 @@ type iPlayerStats struct {
 }
 
 // NewPlayerStats creates a new PlayerStats.
-func NewPlayerStats(name string) {
+func NewPlayerStats(name string) *iPlayerStats {
 	return &iPlayerStats{name: name}
 }
 
@@ -44,4 +45,11 @@ func (s *iPlayerStats) Name() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.name
+}
+
+// SetName sets a Player's name.
+func (s *iPlayerStats) SetName(name string) {
+	s.Lock()
+	defer s.Unlock()
+	s.name = name
 }
