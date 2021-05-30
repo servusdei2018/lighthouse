@@ -131,10 +131,12 @@ func (m *iMUD) ListenAndServe(port string) (err error) {
 			continue
 		}
 
-		if msg.Player().Name() != "" {
-			go m.BroadcastAll([]byte(fmt.Sprintf("%v chats, \"%s\"\n", msg.Player().Name(), msg.Message())))
+		// TODO(Nate): Delegate command handlers.
+		if msg.Player().Name() != "" && msg.Message() != "" {
+			go m.BroadcastAll([]byte(fmt.Sprintf("%s chats, \"%s\"\n", msg.Player().Name(), msg.Message())))
 		} else {
 			if msg.Message() != "" {
+				go m.BroadcastAll([]byte(fmt.Sprintf("%s has entered the lighthouse.\n", msg.Message())))
 				msg.Player().SetName(msg.Message())
 			} else {
 				msg.Player().Send([]byte("You must choose a valid name!\n\n"))
