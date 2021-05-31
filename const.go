@@ -7,5 +7,7 @@ const (
 )
 
 var (
-	WELCOME_MSG = []byte(fmt.Sprintf("Lighthouse %v (lighthouse.vineyard.haus:1990)\nPlease note that we are under heavy development.\nWelcome to the Lighthouse! By what name shall you be known? ", VERSION))
+	WELCOME_MSG = []byte(fmt.Sprintf("Lighthouse %v (lighthouse.vineyard.haus:1990)\nPlease note that we are under heavy development.\n", VERSION))
+	WELCOME_PROMPT = []byte("Welcome to the Lighthouse! By what name shall you be known? ")
+	UNKNOWN_CMD_MSG = []byte("Huh?\n")
 )

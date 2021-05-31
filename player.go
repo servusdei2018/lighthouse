@@ -52,6 +52,8 @@ func NewPlayer(conn net.Conn, mud MUD) Player {
 	p.Serve(mud)
 	// Send welcome message.
 	p.Send(WELCOME_MSG)
+	// Send welcome prompt.
+	p.Send(WELCOME_PROMPT)
 	return p
 }
 

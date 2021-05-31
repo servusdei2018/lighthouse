@@ -21,6 +21,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -60,40 +61,13 @@ func (m *iMUD) BroadcastAll(msg []byte) {
 	}
 }
 
-// Players returns a slice of players currently online.
-func (m *iMUD) Players() []Player {
-	m.RLock()
-	defer m.RUnlock()
-	return m.players
-}
-
-// Process receives a Messsage for processing.
-func (m *iMUD) Process(msg Message) {
-	go func() {
-		m.msgqueue <- msg
-	}()
-}
-
-// RemovePlayer removes a Player from the MUD's player list.
-func (m *iMUD) RemovePlayer(p Player) {
-	// Shutdown the underlying connection.
-	p.Shutdown()
-
-	// Send a disconnect message.
-	if p.Name() != "" {
-		go m.BroadcastAll([]byte(fmt.Sprintf("%s has left the lighthouse.\n", p.Name())))
-	}
-
-	// Delete the Player from the player list.
-	players := m.Players()
-	for k, v := range players {
-		if v == p {
-			m.Lock()
-			// Remove the Player by plucking him out of the list.
-			m.players = append(m.players[:k], m.players[k+1:]...)
-			m.Unlock()
-			return
-		}
+// Handle handles a command.
+func (m *iMUD) Handle(msg Message) {
+	tokens := strings.Split(msg.Message(), " ")
+	if handler, ok := CommandMap[strings.ToLower(tokens[0])]; ok {
+		handler(tokens, msg.Player(), m)
+	} else {
+		msg.Player().Send(UNKNOWN_CMD_MSG)
 	}
 }
 
@@ -132,16 +106,54 @@ func (m *iMUD) ListenAndServe(port string) (err error) {
 		}
 
 		// TODO(Nate): Delegate command handlers.
-		if msg.Player().Name() != "" && msg.Message() != "" {
-			go m.BroadcastAll([]byte(fmt.Sprintf("%s chats, \"%s\"\n", msg.Player().Name(), msg.Message())))
+		if msg.Player().Name() != "" {
+			go m.Handle(msg)
 		} else {
-			if msg.Message() != "" {
-				go m.BroadcastAll([]byte(fmt.Sprintf("%s has entered the lighthouse.\n", msg.Message())))
-				msg.Player().SetName(msg.Message())
+			if name := msg.Message(); name != "" {
+				msg.Player().SetName(name)
+				msg.Player().Send([]byte("\n"))
+				go m.BroadcastAll([]byte(fmt.Sprintf("%s has entered the lighthouse.\n", name)))
 			} else {
 				msg.Player().Send([]byte("You must choose a valid name!\n\n"))
-				msg.Player().Send(WELCOME_MSG)
+				msg.Player().Send(WELCOME_PROMPT)
 			}
+		}
+	}
+}
+
+// Players returns a slice of players currently online.
+func (m *iMUD) Players() []Player {
+	m.RLock()
+	defer m.RUnlock()
+	return m.players
+}
+
+// Process receives a Messsage for processing.
+func (m *iMUD) Process(msg Message) {
+	go func() {
+		m.msgqueue <- msg
+	}()
+}
+
+// RemovePlayer removes a Player from the MUD's player list.
+func (m *iMUD) RemovePlayer(p Player) {
+	// Shutdown the underlying connection.
+	p.Shutdown()
+
+	// Send a disconnect message.
+	if p.Name() != "" {
+		go m.BroadcastAll([]byte(fmt.Sprintf("%s has left the lighthouse.\n", p.Name())))
+	}
+
+	// Delete the Player from the player list.
+	players := m.Players()
+	for k, v := range players {
+		if v == p {
+			m.Lock()
+			// Remove the Player by plucking him out of the list.
+			m.players = append(m.players[:k], m.players[k+1:]...)
+			m.Unlock()
+			return
 		}
 	}
 }
